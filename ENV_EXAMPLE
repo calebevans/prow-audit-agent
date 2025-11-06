@@ -1,0 +1,27 @@
+# LLM Configuration
+# Provider: openai, anthropic, azure, ollama, openrouter, etc.
+LLM_PROVIDER=openai
+
+# API key for the provider
+LLM_API_KEY=your-api-key-here
+
+# Model name
+# OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo
+# Anthropic: claude-3-5-sonnet-20241022, claude-3-opus-20240229
+# Ollama: llama2, mistral, etc.
+LLM_MODEL=gpt-4
+
+# Optional: Base URL for custom/local LLM endpoints
+# For Ollama: http://localhost:11434
+# LLM_BASE_URL=
+
+# Optional: Temperature setting (default: 0.1)
+# LLM_TEMPERATURE=0.1
+
+# Optional: Max tokens per response (default: 4000)
+# LLM_MAX_TOKENS=4000
+
+# Docker Compose Configuration
+# LOG_PATH=/path/to/your/prow/logs
+# OUTPUT_PATH=./results
+# STAGE=optional-stage-name

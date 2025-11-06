@@ -1,3 +1,12 @@
+# Exclude large log directories
+redhat-appstudio_infra-deployments/
+logs/
+results/
+
+# Git
+.git/
+.gitignore
+
 # Python
 __pycache__/
 *.py[cod]
@@ -41,22 +50,30 @@ ENV/
 .coverage
 htmlcov/
 .tox/
+tests/
 
 # Type checking
 .mypy_cache/
 .dmypy.json
 dmypy.json
 
-# Project specific
-results/
+# Documentation (not needed in container)
+*.md
+!README.md
+
+# Project specific outputs
 *.db
 *.tar.gz
-logs/
 
 # OS
 .DS_Store
 Thumbs.db
 
 # Pre-commit
+.pre-commit-config.yaml
 .pre-commit-config.yaml.bak
-.python-version
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
