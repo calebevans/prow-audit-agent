@@ -35,7 +35,7 @@ The tool implements a streamlined analysis pipeline:
 ### Prerequisites
 
 - Python 3.11 or higher
-- Docker/Podman (optional, for containerized deployment)
+- Podman or Docker (optional, for containerized deployment)
 
 ### Local Installation
 
@@ -51,14 +51,11 @@ pip install -r requirements.txt
 pre-commit install
 ```
 
-### Docker Installation
+### Container Installation
 
 ```bash
-# Build the Docker image
-docker build -t prow-audit-agent .
-
-# Or use docker-compose
-docker-compose build
+# Build the audit agent image
+podman build -t prow-audit-agent .
 ```
 
 ## Configuration
@@ -103,20 +100,20 @@ prow-audit --log-path /path/to/logs --stage appstudio-e2e-tests
 prow-audit --log-path /path/to/logs --database ./audit.db
 ```
 
-### Docker Usage
+### Container Usage
 
 ```bash
-# Using docker-compose
+# Using podman-compose
 export LLM_PROVIDER=openai
 export LLM_API_KEY=your-key
 export LLM_MODEL=gpt-4
 export LOG_PATH=/path/to/logs
 export OUTPUT_PATH=./results
 
-docker-compose up
+podman-compose up
 
-# Using docker directly
-docker run -v /path/to/logs:/data/logs:ro \
+# Using podman directly
+podman run -v /path/to/logs:/data/logs:ro \
            -v ./results:/data/results \
            -e LLM_PROVIDER=openai \
            -e LLM_API_KEY=your-key \
@@ -186,9 +183,9 @@ The tool generates the following outputs:
 ### 4. Tarball (`prow_audit_results.tar.gz`)
 - Contains all outputs for easy distribution
 
-## MCP Server for Interactive Queries
+## MCP Server for Interactive Queries (Optional)
 
-The tool includes an MCP server that allows interactive querying of the audit database using Claude Desktop or other MCP-compatible clients.
+After running an audit, you can optionally set up an MCP server to interactively query the audit database using Cursor or Claude Desktop. **This is not required to run audits** - the audit tool generates complete reports automatically.
 
 ### Available Tools
 
@@ -202,11 +199,52 @@ The tool includes an MCP server that allows interactive querying of the audit da
 - `correlate_failures`: Find co-occurring failures
 - `export_data`: Export filtered data
 
-### Configuration
+### Setup
 
-#### Cursor
+#### Option 1: Container (Recommended)
 
-Add to your Cursor MCP config (`~/.cursor/mcp.json`):
+This is the easiest and most portable setup method. Works with Podman or Docker.
+
+**1. Build the MCP server image:**
+
+```bash
+make build-mcp
+```
+
+**2. Configure Cursor** (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "prow-audit-db": {
+      "command": "podman",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/absolute/path/to/prow_audit.db:/data/prow_audit.db:ro",
+        "prow-audit-mcp:latest",
+        "--database",
+        "/data/prow_audit.db"
+      ]
+    }
+  }
+}
+```
+
+#### Option 2: Local Python
+
+If you prefer not to use containers:
+
+**1. Install dependencies:**
+
+```bash
+cd /path/to/prow-audit-agent
+pip install -r requirements.txt
+```
+
+**2. Configure Cursor** (`~/.cursor/mcp.json`):
 
 ```json
 {
@@ -217,8 +255,12 @@ Add to your Cursor MCP config (`~/.cursor/mcp.json`):
         "-m",
         "src.mcp.database_server",
         "--database",
-        "/path/to/prow_audit.db"
-      ]
+        "/absolute/path/to/prow_audit.db"
+      ],
+      "cwd": "/absolute/path/to/prow-audit-agent",
+      "env": {
+        "PYTHONPATH": "/absolute/path/to/prow-audit-agent"
+      }
     }
   }
 }

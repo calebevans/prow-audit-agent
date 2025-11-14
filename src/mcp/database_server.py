@@ -1,9 +1,13 @@
 """MCP server for database analytics."""
 
+import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
+from mcp.server import Server
+from mcp.types import Tool, TextContent
 from sqlalchemy import case, func, select
 
 from ..database.models import Run, Stage, Step, StepAnalysis
@@ -420,3 +424,131 @@ def create_mcp_server_config(database_path: Path) -> dict[str, Any]:
             }
         }
     }
+
+
+async def main():
+    """Run the MCP server."""
+    parser = argparse.ArgumentParser(description="Prow Audit Database MCP Server")
+    parser.add_argument("--database", required=True, help="Path to SQLite database")
+    args = parser.parse_args()
+
+    # Initialize the analytics server
+    analytics = DatabaseAnalyticsServer(f"sqlite:///{args.database}")
+    
+    # Create MCP server
+    server = Server("prow-audit-db")
+
+    @server.list_tools()
+    async def list_tools() -> list[Tool]:
+        """List available tools."""
+        return [
+            Tool(
+                name="get_root_cause_distribution",
+                description="Get distribution of root causes with optional semantic clustering",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "default": 15},
+                        "use_semantic_clustering": {"type": "boolean", "default": False},
+                        "similarity_threshold": {"type": "number", "default": 0.75},
+                    },
+                },
+            ),
+            Tool(
+                name="get_error_category_breakdown",
+                description="Get failure distribution by category",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="get_step_failure_analysis",
+                description="Find which steps fail most frequently",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "default": 15},
+                    },
+                },
+            ),
+            Tool(
+                name="get_stage_statistics",
+                description="Per-stage success/failure rates",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="get_run_details",
+                description="Detailed information about specific runs",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "run_id": {"type": "integer"},
+                    },
+                    "required": ["run_id"],
+                },
+            ),
+            Tool(
+                name="find_similar_failures",
+                description="Find steps with similar characteristics",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "error_category": {"type": "string"},
+                        "failure_type": {"type": "string"},
+                        "limit": {"type": "integer", "default": 10},
+                    },
+                },
+            ),
+            Tool(
+                name="analyze_trends",
+                description="Temporal analysis of failure rates",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="correlate_failures",
+                description="Find co-occurring failures",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "stage_name": {"type": "string"},
+                    },
+                    "required": ["stage_name"],
+                },
+            ),
+        ]
+
+    @server.call_tool()
+    async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+        """Call a tool."""
+        try:
+            if name == "get_root_cause_distribution":
+                result = analytics.get_root_cause_distribution(**arguments)
+            elif name == "get_error_category_breakdown":
+                result = analytics.get_error_category_breakdown()
+            elif name == "get_step_failure_analysis":
+                result = analytics.get_step_failure_analysis(**arguments)
+            elif name == "get_stage_statistics":
+                result = analytics.get_stage_statistics()
+            elif name == "get_run_details":
+                result = analytics.get_run_details(**arguments)
+            elif name == "find_similar_failures":
+                result = analytics.find_similar_failures(**arguments)
+            elif name == "analyze_trends":
+                result = analytics.analyze_trends()
+            elif name == "correlate_failures":
+                result = analytics.correlate_failures(**arguments)
+            else:
+                raise ValueError(f"Unknown tool: {name}")
+
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    # Run the server
+    from mcp.server.stdio import stdio_server
+
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(read_stream, write_stream, server.create_initialization_options())
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
